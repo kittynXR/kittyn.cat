@@ -193,7 +193,12 @@
       cursor: pointer;
       padding: .25rem;
       transition: color .2s ease;
-      display: none;
+      display: none !important;
+    }
+    @media (min-width: 1200px) {
+      #menu-pin {
+        display: inline-block !important;
+      }
     }
     #menu-pin:hover {
       color: var(--accent);
@@ -380,12 +385,6 @@
     }
 
     /* Responsive Design */
-    @media (min-width: 1200px) {
-      #menu-pin {
-        display: inline-block;
-      }
-    }
-
     @media (max-width: 1199px) {
       body.sidebar-pinned {
         margin-left: 0;
@@ -918,12 +917,22 @@
 
     // Initialize pinned state on page load
     (function initPinnedState() {
-      if (loadPinnedState()) {
+      console.log('Init pinned state - isDesktop:', isDesktop(), 'viewport width:', window.innerWidth);
+
+      if (!isDesktop()) return; // Only auto-pin on desktop
+
+      const hasVisitedBefore = localStorage.getItem(PINNED_STATE_KEY) !== null;
+      const shouldPin = !hasVisitedBefore || loadPinnedState();
+
+      console.log('Pinning status - hasVisitedBefore:', hasVisitedBefore, 'shouldPin:', shouldPin);
+
+      if (shouldPin) {
         // Delay slightly to ensure DOM is ready
         setTimeout(() => {
           sidebar.classList.add('active'); // First show it
           setTimeout(() => {
             pinSidebar(); // Then pin it
+            console.log('Sidebar pinned successfully');
           }, 50);
         }, 100);
       }
