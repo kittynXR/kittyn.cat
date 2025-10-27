@@ -766,6 +766,71 @@
         }
       }
     });
+
+    // URL Deep Linking Support
+    // Parse panel parameter from URL and auto-open on page load
+    (function initDeepLink() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const panelParam = urlParams.get('panel');
+
+      // Check if panel parameter exists and is valid
+      if (panelParam && contentData[panelParam]) {
+        // Wait for DOM to be ready, then show content
+        setTimeout(() => {
+          // Find the button for this content
+          const button = document.querySelector(`[data-content="${panelParam}"]`);
+
+          // Auto-expand parent submenu if this is a submenu item
+          if (button && button.classList.contains('submenu-item')) {
+            const submenu = button.closest('.submenu');
+            if (submenu) {
+              submenu.classList.add('expanded');
+              // Also expand the parent menu item
+              const parentMenuItem = submenu.previousElementSibling;
+              if (parentMenuItem) {
+                parentMenuItem.classList.add('expanded');
+              }
+            }
+          }
+
+          // Open the menu and show the content
+          openMenu();
+          showContent(panelParam);
+        }, 100);
+      }
+    })();
+
+    // Enhance showContent to update URL
+    const originalShowContent = showContent;
+    showContent = function(contentKey) {
+      originalShowContent(contentKey);
+
+      // Update URL without page reload
+      const url = new URL(window.location);
+      url.searchParams.set('panel', contentKey);
+      window.history.pushState({}, '', url);
+    };
+
+    // Handle browser back/forward buttons
+    window.addEventListener('popstate', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const panelParam = urlParams.get('panel');
+
+      if (panelParam && contentData[panelParam]) {
+        originalShowContent(panelParam);
+      } else {
+        // Close panel if no panel parameter
+        contentPanel.style.display = 'none';
+      }
+    });
+
+    // Update close button to remove panel parameter from URL
+    const originalContentClose = contentClose.onclick;
+    contentClose.addEventListener('click', () => {
+      const url = new URL(window.location);
+      url.searchParams.delete('panel');
+      window.history.pushState({}, '', url);
+    });
   </script>
 
   <!-- Simple i18n -->
