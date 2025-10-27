@@ -18,6 +18,7 @@
       --fg: #e7e7e7;
       --muted: #999;
       --radius: 12px;
+      --sidebar-width: 300px;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -28,6 +29,12 @@
       font-family: 'Inter', sans-serif;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
+    }
+    body {
+      transition: margin-left .3s ease;
+    }
+    body.sidebar-pinned {
+      margin-left: var(--sidebar-width);
     }
     a {
       color: var(--accent);
@@ -111,6 +118,9 @@
       background: rgba(255, 102, 204, 0.1);
       border-color: var(--fg);
     }
+    body.sidebar-pinned #menu-toggle {
+      display: none;
+    }
 
     /* Menu Backdrop */
     #menu-backdrop {
@@ -129,13 +139,16 @@
       opacity: 1;
       pointer-events: all;
     }
+    body.sidebar-pinned #menu-backdrop {
+      display: none;
+    }
 
     /* Sidebar Navigation */
     #sidebar {
       position: fixed;
       top: 0;
-      left: -320px;
-      width: 300px;
+      left: calc(var(--sidebar-width) * -1);
+      width: var(--sidebar-width);
       height: 100%;
       background: #0d0d0d;
       border-right: 1px solid #222;
@@ -146,6 +159,11 @@
     }
     #sidebar.active {
       left: 0;
+    }
+    #sidebar.pinned {
+      left: 0;
+      z-index: 999;
+      border-right: 2px solid var(--accent);
     }
 
     /* Sidebar Header */
@@ -160,6 +178,27 @@
     .sidebar-header h3 {
       margin: 0;
       font-size: 1.25rem;
+      color: var(--accent);
+    }
+    .sidebar-header-actions {
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+    }
+    #menu-pin {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+      padding: .25rem;
+      transition: color .2s ease;
+      display: none;
+    }
+    #menu-pin:hover {
+      color: var(--accent);
+    }
+    #menu-pin.pinned {
       color: var(--accent);
     }
     #menu-close {
@@ -341,6 +380,21 @@
     }
 
     /* Responsive Design */
+    @media (min-width: 1200px) {
+      #menu-pin {
+        display: inline-block;
+      }
+    }
+
+    @media (max-width: 1199px) {
+      body.sidebar-pinned {
+        margin-left: 0;
+      }
+      #sidebar.pinned {
+        z-index: 1003;
+      }
+    }
+
     @media (max-width: 768px) {
       #sidebar {
         width: 280px;
@@ -361,9 +415,14 @@
   <nav id="sidebar">
     <div class="sidebar-header">
       <h3 data-i18n="menu-title">Menu</h3>
-      <button id="menu-close" aria-label="Close menu">
-        <i class="fas fa-times"></i>
-      </button>
+      <div class="sidebar-header-actions">
+        <button id="menu-pin" aria-label="Pin menu" title="Pin menu">
+          <i class="fas fa-thumbtack"></i>
+        </button>
+        <button id="menu-close" aria-label="Close menu">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
     </div>
     <ul class="menu-list">
       <li>
@@ -767,6 +826,121 @@
       }
     });
 
+    // Pin Functionality
+    const menuPin = document.getElementById('menu-pin');
+    const PINNED_STATE_KEY = 'sidebar-pinned';
+
+    // Check if viewport is desktop (1200px+)
+    function isDesktop() {
+      return window.matchMedia('(min-width: 1200px)').matches;
+    }
+
+    // Load pinned state from localStorage
+    function loadPinnedState() {
+      if (!isDesktop()) return false;
+      return localStorage.getItem(PINNED_STATE_KEY) === 'true';
+    }
+
+    // Save pinned state to localStorage
+    function savePinnedState(isPinned) {
+      localStorage.setItem(PINNED_STATE_KEY, isPinned ? 'true' : 'false');
+    }
+
+    // Check if sidebar is currently pinned
+    function isPinned() {
+      return sidebar.classList.contains('pinned');
+    }
+
+    // Pin the sidebar
+    function pinSidebar() {
+      if (!isDesktop()) return; // Only allow pinning on desktop
+
+      sidebar.classList.add('pinned');
+      sidebar.classList.remove('active'); // Remove overlay state
+      menuBackdrop.classList.remove('active');
+      document.body.classList.add('sidebar-pinned');
+      document.body.style.overflow = ''; // Restore scrolling
+      menuPin.classList.add('pinned');
+      menuPin.setAttribute('aria-label', 'Unpin menu');
+      menuPin.setAttribute('title', 'Unpin menu');
+
+      savePinnedState(true);
+    }
+
+    // Unpin the sidebar (return to overlay mode)
+    function unpinSidebar() {
+      sidebar.classList.remove('pinned');
+      sidebar.classList.add('active'); // Return to overlay state
+      menuBackdrop.classList.add('active');
+      document.body.classList.remove('sidebar-pinned');
+      document.body.style.overflow = 'hidden';
+      menuPin.classList.remove('pinned');
+      menuPin.setAttribute('aria-label', 'Pin menu');
+      menuPin.setAttribute('title', 'Pin menu');
+
+      savePinnedState(false);
+    }
+
+    // Toggle pin state
+    function togglePin() {
+      if (isPinned()) {
+        unpinSidebar();
+      } else {
+        pinSidebar();
+      }
+    }
+
+    // Update openMenu to respect pinned state
+    const originalOpenMenu = openMenu;
+    openMenu = function() {
+      if (isPinned()) {
+        // If already pinned, just ensure it's visible
+        return;
+      }
+      originalOpenMenu();
+    };
+
+    // Update closeMenu to handle pinned state
+    const originalCloseMenu = closeMenu;
+    closeMenu = function() {
+      if (isPinned()) {
+        // If pinned, unpin first
+        unpinSidebar();
+      }
+      originalCloseMenu();
+    };
+
+    // Pin button event listener
+    menuPin.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePin();
+    });
+
+    // Initialize pinned state on page load
+    (function initPinnedState() {
+      if (loadPinnedState()) {
+        // Delay slightly to ensure DOM is ready
+        setTimeout(() => {
+          sidebar.classList.add('active'); // First show it
+          setTimeout(() => {
+            pinSidebar(); // Then pin it
+          }, 50);
+        }, 100);
+      }
+    })();
+
+    // Handle viewport resize - unpin if viewport becomes too small
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (!isDesktop() && isPinned()) {
+          unpinSidebar();
+          closeMenu();
+        }
+      }, 250);
+    });
+
     // URL Deep Linking Support
     // Parse panel parameter from URL and auto-open on page load
     (function initDeepLink() {
@@ -837,7 +1011,7 @@
   <script>
     const t = {
       en: {
-        tagline: "Software creator, high-performance VTuber",
+        tagline: "software creator, game dev, v-tuber",
         live: "Live on Twitch",
         find: "Find me elsewhere",
         rights: "All rights reserved.",
@@ -857,10 +1031,12 @@
         "menu-gaming": "Gaming/VR",
         "menu-stream": "Stream/Media",
         "menu-dev": "Dev",
-        "menu-bots": "Bots/NAS"
+        "menu-bots": "Bots/NAS",
+        "menu-pin": "Pin menu",
+        "menu-unpin": "Unpin menu"
       },
       ca: {
-        tagline: "Creador de programari, VTuber d'alt rendiment",
+        tagline: "creador de programari, game dev, v-tuber",
         live: "En directe a Twitch",
         find: "Troba'm a altres llocs",
         rights: "Tots els drets reservats.",
@@ -880,10 +1056,12 @@
         "menu-gaming": "Gaming/VR",
         "menu-stream": "Stream/Media",
         "menu-dev": "Dev",
-        "menu-bots": "Bots/NAS"
+        "menu-bots": "Bots/NAS",
+        "menu-pin": "Fixar menú",
+        "menu-unpin": "Alliberar menú"
       },
       ja: {
-        tagline: "ソフトウェアクリエイター、高性能VTuber",
+        tagline: "ソフトウェアクリエイター、ゲーム開発者、Vtuber",
         live: "Twitchで配信中",
         find: "他のSNSはこちら",
         rights: "無断転載禁止。",
@@ -903,10 +1081,12 @@
         "menu-gaming": "ゲーミング/VR",
         "menu-stream": "配信/メディア",
         "menu-dev": "開発",
-        "menu-bots": "ボット/NAS"
+        "menu-bots": "ボット/NAS",
+        "menu-pin": "メニューを固定",
+        "menu-unpin": "メニューの固定を解除"
       },
       zh: {
-        tagline: "软件创作者，高性能VTuber",
+        tagline: "软件创作者，游戏开发者，虚拟主播",
         live: "正在Twitch直播",
         find: "关注我的其他平台",
         rights: "版权所有。",
@@ -926,10 +1106,12 @@
         "menu-gaming": "游戏/VR",
         "menu-stream": "直播/媒体",
         "menu-dev": "开发",
-        "menu-bots": "机器人/NAS"
+        "menu-bots": "机器人/NAS",
+        "menu-pin": "固定菜单",
+        "menu-unpin": "取消固定菜单"
       },
       es: {
-        tagline: "Creador de software y VTuber de alto rendimiento",
+        tagline: "creador de software, game dev, v-tuber",
         live: "En directo en Twitch",
         find: "Encuéntrame en otros sitios",
         rights: "Todos los derechos reservados.",
@@ -949,10 +1131,12 @@
         "menu-gaming": "Gaming/VR",
         "menu-stream": "Stream/Media",
         "menu-dev": "Dev",
-        "menu-bots": "Bots/NAS"
+        "menu-bots": "Bots/NAS",
+        "menu-pin": "Fijar menú",
+        "menu-unpin": "Desfijar menú"
       },
       sv: {
-        tagline: "Programvaruskapare, högpresterande VTuber",
+        tagline: "mjukvaruskapare, spelutvecklare, v-tuber",
         live: "Live på Twitch",
         find: "Hitta mig på andra plattformar",
         rights: "Alla rättigheter förbehållna.",
@@ -972,7 +1156,9 @@
         "menu-gaming": "Gaming/VR",
         "menu-stream": "Stream/Media",
         "menu-dev": "Dev",
-        "menu-bots": "Bots/NAS"
+        "menu-bots": "Bots/NAS",
+        "menu-pin": "Fäst meny",
+        "menu-unpin": "Lossa meny"
       }
     };
 
